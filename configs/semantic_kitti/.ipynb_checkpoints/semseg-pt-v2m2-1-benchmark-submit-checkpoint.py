@@ -1,10 +1,11 @@
 _base_ = ["../_base_/default_runtime.py"]
 
 # misc custom setting
-batch_size = 2  # bs: total bs in all gpus
+batch_size = 8  # bs: total bs in all gpus
 mix_prob = 0.8
 empty_cache = False
 enable_amp = True
+evaluate = False
 
 # model settings
 model = dict(
@@ -34,16 +35,35 @@ model = dict(
         enable_checkpoint=False,
         unpool_backend="map",  # map / interp
     ),
-    # fmt: off
     criteria=[
-        dict(type="CrossEntropyLoss",
-             weight=[3.1557, 8.7029, 7.8281, 6.1354, 6.3161, 7.9937, 8.9704, 10.1922, 1.6155, 4.2187,
-                     1.9385, 5.5455, 2.0198, 2.6261, 1.3212, 5.1102, 2.5492, 5.8585, 7.3929],
-             loss_weight=1.0,
-             ignore_index=-1),
+        dict(
+            type="CrossEntropyLoss",
+            weight=[
+                3.1557,
+                8.7029,
+                7.8281,
+                6.1354,
+                6.3161,
+                7.9937,
+                8.9704,
+                10.1922,
+                1.6155,
+                4.2187,
+                1.9385,
+                5.5455,
+                2.0198,
+                2.6261,
+                1.3212,
+                5.1102,
+                2.5492,
+                5.8585,
+                7.3929,
+            ],
+            loss_weight=1.0,
+            ignore_index=-1,
+        ),
         dict(type="LovaszLoss", mode="multiclass", loss_weight=1.0, ignore_index=-1),
     ],
-    # fmt: on
 )
 
 # scheduler settings
@@ -91,7 +111,7 @@ data = dict(
     names=names,
     train=dict(
         type=dataset_type,
-        split="train",
+        split=["train", "val"],
         data_root=data_root,
         transform=[
             # dict(type="RandomDropout", dropout_ratio=0.2, dropout_application_ratio=0.2),
@@ -125,34 +145,9 @@ data = dict(
         test_mode=False,
         ignore_index=ignore_index,
     ),
-    val=dict(
-        type=dataset_type,
-        split="val",
-        data_root=data_root,
-        transform=[
-            dict(type="Copy", keys_dict={"segment": "origin_segment"}),
-            dict(
-                type="GridSample",
-                grid_size=0.05,
-                hash_type="fnv",
-                mode="train",
-                return_grid_coord=True,
-                return_inverse=True,
-            ),
-            dict(type="PointClip", point_cloud_range=(-35.2, -35.2, -4, 35.2, 35.2, 2)),
-            dict(type="ToTensor"),
-            dict(
-                type="Collect",
-                keys=("coord", "grid_coord", "segment", "origin_segment", "inverse"),
-                feat_keys=("coord", "strength"),
-            ),
-        ],
-        test_mode=False,
-        ignore_index=ignore_index,
-    ),
     test=dict(
         type=dataset_type,
-        split="val",
+        split="test",
         data_root=data_root,
         transform=[
             dict(type="PointClip", point_cloud_range=(-35.2, -35.2, -4, 35.2, 35.2, 2)),
@@ -225,3 +220,14 @@ data = dict(
         ignore_index=ignore_index,
     ),
 )
+
+# hook
+hooks = [
+    dict(type="CheckpointLoader"),
+    dict(type="ModelHook"),
+    dict(type="IterationTimer", warmup_iter=2),
+    dict(type="InformationWriter"),
+    dict(type="SemSegEvaluator"),
+    dict(type="CheckpointSaver", save_freq=None),
+    dict(type="PreciseEvaluator", test_last=True),
+]
