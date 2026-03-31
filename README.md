@@ -1,3 +1,8 @@
+## Note: To reinstall with exact library versions used, please refer to ptv3OnGooseExactVersions.txt. Can run this like so:
+```
+conda create --name goosePPTv3 --file ptv3OnGooseExactVersions.txt
+```
+
 <p align="center">
     <!-- pypi-strip -->
     <picture>
